@@ -42,7 +42,7 @@ pipeline {
             sh "sudo docker image rm ${PROJECT}-kwi:${COMMIT_HASH}"
             sh "sudo docker image rm ${AWS_ID}.dkr.ecr.${REGION}.amazonaws.com/${PROJECT}-kwi:${COMMIT_HASH}"
             sh "mvn clean"
-            sh "cd .. && rm -r *"
+            sh "cd .. && rm -rf *ns-Pipelines-for-Microservices*"
         }
     }
 }
