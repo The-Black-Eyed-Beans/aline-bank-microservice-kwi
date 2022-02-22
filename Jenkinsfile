@@ -1,6 +1,10 @@
 pipeline {
     agent any
 
+    tools {
+        maven 'Maven'
+    }
+
     environment {
         AWS_ID = credentials("AWS-ACCOUNT-ID")
         REGION = 'us-east-1'
@@ -9,13 +13,13 @@ pipeline {
     }
 
     stages {
-        stage("test") {
+        stage("Test") {
             steps {
                 sh 'mvn clean test'
             }
         }
 
-        stage("package")  {
+        stage("Package")  {
             steps {
                 sh 'mvn package -DskipTests'
             }
