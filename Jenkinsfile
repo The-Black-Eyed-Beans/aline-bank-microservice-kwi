@@ -5,7 +5,7 @@ pipeline {
         AWS_ID = credentials("AWS-ACCOUNT-ID")
         REGION = 'us-east-1'
         PROJECT = 'bank-microservice'
-        COMMIT_HASH = '${sh(script: 'git rev-parse --short HEAD', returnStdout: true).trim()}'
+        COMMIT_HASH = '${sh(script: "git rev-parse --short HEAD", returnStdout: true).trim()}'
     }
 
     stages {
