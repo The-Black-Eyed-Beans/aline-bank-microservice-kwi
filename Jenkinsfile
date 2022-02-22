@@ -15,6 +15,7 @@ pipeline {
     stages {
         stage("Test") {
             steps {
+                sh 'git submodule init'
                 sh 'mvn clean test'
             }
         }
