@@ -7,7 +7,7 @@ pipeline {
 
     environment {
         AWS_ID = credentials("AWS-ACCOUNT-ID")
-        REGION = "us-east-1"
+        REGION = credentials("REGION-KWI")
         PROJECT = "bank-microservice"
         COMMIT_HASH = "${sh(script: 'git rev-parse --short HEAD', returnStdout: true).trim()}"
     }
@@ -31,7 +31,7 @@ pipeline {
 
         stage('Quality Gate'){
             steps {
-                timeout(time: 3, unit: 'MINUTES'){
+                timeout(time: 5, unit: 'MINUTES'){
                     waitForQualityGate abortPipeline: true
                 }
             }
@@ -49,6 +49,24 @@ pipeline {
                 sh "sudo docker build -t ${PROJECT}-kwi:${COMMIT_HASH} ."
                 sh "sudo docker tag ${PROJECT}-kwi:${COMMIT_HASH} ${AWS_ID}.dkr.ecr.${REGION}.amazonaws.com/${PROJECT}-kwi:${COMMIT_HASH}"
                 sh "sudo docker push ${AWS_ID}.dkr.ecr.${REGION}.amazonaws.com/${PROJECT}-kwi:${COMMIT_HASH}"
+            }
+        }
+
+        stage("Deployment") {
+            steps {
+                echo "Deploying ${PROJECT}-kwi..."
+                sh '''
+                aws cloudformation deploy \
+                --stack-name ${PROJECT}-kwi-stack \
+                --template-file deploy.json \
+                --profile keshaun \
+                --capabilities CAPABILITY_IAM \
+                --no-fail-on-empty-changeset \
+                --parameter-overrides \
+                    MicroserviceName=${PROJECT} \
+                    AppPort=8083 \
+                    ImageTag=${COMMIT_HASH}
+                '''
             }
         }
     }
