@@ -21,12 +21,6 @@ pipeline {
             }
         }
 
-        stage("Package")  {
-            steps {
-                sh "mvn package -DskipTests"
-            }
-        }
-
         stage("SonarQube Code Analysis") {
             steps {
                 withSonarQubeEnv(installationName: 'SonarQube-Server-kwi'){
@@ -40,6 +34,12 @@ pipeline {
                 timeout(time: 3, unit: 'MINUTES'){
                     waitForQualityGate abortPipeline: true
                 }
+            }
+        }
+
+        stage("Package")  {
+            steps {
+                sh "mvn package -DskipTests"
             }
         }
 
