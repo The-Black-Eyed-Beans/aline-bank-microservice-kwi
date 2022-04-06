@@ -81,7 +81,7 @@ pipeline {
                 --no-fail-on-empty-changeset \
                 --parameter-overrides \
                     MicroserviceName=${PROJECT} \
-                    AppPort=8083 \
+                    AppPort=${APP_PORT} \
                     ImageTag=${COMMIT_HASH}
                 '''
             }
