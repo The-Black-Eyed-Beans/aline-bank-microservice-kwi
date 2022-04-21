@@ -27,7 +27,6 @@ pipeline {
         stage("Git Setup") {
             steps {
                 sh "git submodule init"
-                sh "cd core | git pull | cd .."
                 sh "git submodule update"
             }
         }
