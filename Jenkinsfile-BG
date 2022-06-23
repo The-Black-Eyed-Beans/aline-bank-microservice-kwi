@@ -54,7 +54,7 @@ pipeline {
             }
             steps {
                 echo "Deploying ${PROJECT}..."
-                bat "docker login"
+                bat "winpty docker login"
                 sh ". ./.env && envsubst < deployment-green.yml | kubectl apply -f -"
             }
         }
