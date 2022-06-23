@@ -1,0 +1,95 @@
+pipeline {
+    agent {
+        node {
+            label "worker-one"
+        }
+    }
+
+    tools {
+        maven "Maven"
+    }
+
+    environment {
+        APP = "bank"
+        PROJECT = "bank-microservice"
+        COMMIT_HASH = "${sh(script: 'git rev-parse --short HEAD', returnStdout: true).trim()}"
+        APP_PORT = 8083
+        DEPLOYMENT = "BG"
+    }
+
+    stages {
+        stage("Git Setup") {
+            steps {
+                sh "git submodule init"
+                sh "git submodule update"
+            }
+        }
+        
+        stage("Test") {
+            steps {
+                sh "mvn clean test"
+            }
+        }
+
+        stage("Package")  {
+            steps {
+                sh "mvn package -DskipTests"
+            }
+        }
+
+        stage("Docker Build") {
+            steps {
+                echo "Building Docker Image with Commit Hash as the tag..."
+                sh "docker build -t ${PROJECT}:${COMMIT_HASH} ."
+            }
+        }
+
+        stage("Create ENV File") {
+            steps {
+                echo "Generating .env..."
+                sh """aws secretsmanager get-secret-value --secret-id aline-kwi/dev/secrets/db --region eu-central-1 | jq -r '.["SecretString"]' | jq '.' | jq -r 'keys[] as \$k | "export Db\\(\$k)=\\(.[\$k])"' > .env"""
+                
+                sh "echo 'export ImageTag=${COMMIT_HASH}' >> .env"
+                sh "echo 'export AppPort=${APP_PORT}' >> .env"
+                sh "echo 'export AppName=${APP}' >> .env"
+                sh "echo 'export Project=${PROJECT}' >> .env"
+            }
+        }
+
+        stage("Green Deployment") {
+            when {
+                environment(name: "DEPLOYMENT", value: "BG")
+            }
+            steps {
+                echo "Deploying ${PROJECT}..."
+                sh ". ./.env && envsubst < deployment-green.yml | kubectl apply -f -"
+            }
+        }
+
+        stage("Blue Deployment") {
+            when {
+                environment(name: "DEPLOYMENT", value: "BG")
+            }
+            steps {
+                script {
+                    sleep 120
+                    def output = sh(returnStdout: true, script: "curl http://localhost:81/api/banks")
+                    if(output.contains("Not Found")) {
+                        sh ". ./.env && envsubst < deployment-green.yml | kubectl delete -f -"
+                        error("New version not working...")
+                    } else {
+                        sh ". ./.env && envsubst < deployment-blue.yml | kubectl apply -f -"
+                        sh ". ./.env && envsubst < deployment-green.yml | kubectl delete -f -"
+                    }
+                }
+            }
+        }
+    }
+
+    post {
+        always {
+            sh "mvn clean"
+            sh "rm .env"
+        }
+    }
+}
