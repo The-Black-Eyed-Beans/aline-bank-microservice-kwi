@@ -47,7 +47,7 @@
             </plugins>
         </pluginManagement>
     </build>
-    <distributionManagement>
+    <!-- <distributionManagement>
         <snapshotRepository>
             <id>snapshots</id>
             <name>b38a47b2a1a3-snapshots</name>
@@ -58,5 +58,5 @@
             <name>b38a47b2a1a3-releases</name>
             <url>https://${env.JFROG_URL}/artifactory/libs-release</url>
         </repository>
-    </distributionManagement>
+    </distributionManagement> -->
 </project>
