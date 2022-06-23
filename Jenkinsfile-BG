@@ -1,9 +1,5 @@
 pipeline {
-    agent {
-        node {
-            label "worker-one"
-        }
-    }
+    agent any
 
     tools {
         maven "Maven"
