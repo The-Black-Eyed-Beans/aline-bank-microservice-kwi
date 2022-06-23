@@ -54,7 +54,7 @@ pipeline {
             }
             steps {
                 echo "Deploying ${PROJECT}..."
-                sh "sudo docker login"
+                //sh "docker login"
                 sh ". ./.env && envsubst < deployment-green.yml | kubectl apply -f -"
             }
         }
