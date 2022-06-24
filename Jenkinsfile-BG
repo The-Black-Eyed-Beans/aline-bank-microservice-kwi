@@ -55,8 +55,8 @@ pipeline {
             }
             steps {
                 echo "Deploying ${PROJECT}..."
-                //sh "docker login"
-                sh "kubectl config use-context docker-desktop"
+                // sh "docker login"
+                // sh "kubectl config use-context docker-desktop"
                 sh ". ./.env && envsubst < deployment-green.yml | kubectl apply -f -"
             }
         }
