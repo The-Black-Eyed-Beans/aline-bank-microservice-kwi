@@ -40,7 +40,7 @@ pipeline {
             steps {
                 echo "Generating .env..."
                 sh """aws secretsmanager get-secret-value --secret-id aline-kwi/dev/secrets/db --region eu-central-1 | jq -r '.["SecretString"]' | jq '.' | jq -r 'keys[] as \$k | "export Db\\(\$k)=\\(.[\$k])"' > .env"""
-                sh """aws secretsmanager get-secret-value --secret-id aline-kwi/dev/secrets/user-credentials --region us-east-1 --profile keshaun | jq -r '.["SecretString"]' | jq '.' | jq -r 'keys[] as \$k | "export \\(\$k)=\\(.[\$k])"' >> .env"""
+                sh """aws secretsmanager get-secret-value --secret-id aline-kwi/dev/secrets/user-credentials --region us-east-1 | jq -r '.["SecretString"]' | jq '.' | jq -r 'keys[] as \$k | "export \\(\$k)=\\(.[\$k])"' >> .env"""
                 
                 sh "echo 'export ImageTag=${COMMIT_HASH}' >> .env"
                 sh "echo 'export AppPort=${APP_PORT}' >> .env"
@@ -67,7 +67,7 @@ pipeline {
             }
             steps {
                 script {
-                    sleep 120
+                    sleep 90
                     def output = sh(returnStdout: true, script: "curl http://localhost:81/api/banks")
                     if(output.contains("Not Found")) {
                         sh ". ./.env && envsubst < deployment-green.yml | kubectl delete -f -"
