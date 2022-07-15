@@ -14,13 +14,15 @@ pipeline {
     stages {
         stage("Environment Setup") {
             steps {
-                env.ACCOUNT_VERSION = sh(script: "kubectl get service backend-service-main -o yaml | grep 'targetPort: account' | grep -o -E 'v[0-9]+'", returnStdout: true)
-                env.BANK_VERSION = sh(script: "echo v\$((\$(kubectl get service backend-service-main -o yaml | grep 'targetPort: bank' | grep -o -E '[0-9]+') + 1))", returnStdout: true)
-                env.TRANS_VERSION = sh(script: "kubectl get service backend-service-main -o yaml | grep 'targetPort: transaction' | grep -o -E 'v[0-9]+'", returnStdout: true)
-                env.UNDERWRITER_VERSION = sh(script: "kubectl get service backend-service-main -o yaml | grep 'targetPort: underwriter' | grep -o -E 'v[0-9]+'", returnStdout: true)
-                env.USER_VERSION = sh(script: "kubectl get service backend-service-main -o yaml | grep 'targetPort: user' | grep -o -E 'v[0-9]+'", returnStdout: true)
-                env.WEIGHT = 20
-                env.BACKEND_VERSION = 'canary'
+                script {
+                    env.ACCOUNT_VERSION = sh(script: "kubectl get service backend-service-main -o yaml | grep 'targetPort: account' | grep -o -E 'v[0-9]+'", returnStdout: true)
+                    env.BANK_VERSION = sh(script: "echo v\$((\$(kubectl get service backend-service-main -o yaml | grep 'targetPort: bank' | grep -o -E '[0-9]+') + 1))", returnStdout: true)
+                    env.TRANS_VERSION = sh(script: "kubectl get service backend-service-main -o yaml | grep 'targetPort: transaction' | grep -o -E 'v[0-9]+'", returnStdout: true)
+                    env.UNDERWRITER_VERSION = sh(script: "kubectl get service backend-service-main -o yaml | grep 'targetPort: underwriter' | grep -o -E 'v[0-9]+'", returnStdout: true)
+                    env.USER_VERSION = sh(script: "kubectl get service backend-service-main -o yaml | grep 'targetPort: user' | grep -o -E 'v[0-9]+'", returnStdout: true)
+                    env.WEIGHT = 20
+                    env.BACKEND_VERSION = 'canary'
+                }
             }
         }
 
