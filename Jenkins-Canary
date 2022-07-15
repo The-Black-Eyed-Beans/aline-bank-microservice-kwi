@@ -1,0 +1,88 @@
+pipeline {
+    agent any
+
+    environment {
+        APP = "bank"
+        PROJECT = "bank-microservice"
+        COMMIT_HASH = "${sh(script: 'git rev-parse --short HEAD', returnStdout: true).trim()}"
+        APP_PORT = 8083
+        DEPLOYMENT = "K8s"
+        HOST = "localhost"
+        ENDPOINT = "banks"
+    }
+
+    stages {
+        stage("Environment Setup") {
+            env.ACCOUNT_VERSION = sh(script: "kubectl get service backend-service-main -o yaml | grep 'targetPort: account' | grep -o -E 'v[0-9]+'", returnStdout: true)
+            env.BANK_VERSION = sh(script: "echo v$(($(kubectl get service backend-service-main -o yaml | grep 'targetPort: bank' | grep -o -E '[0-9]+') + 1))", returnStdout: true)
+            env.TRANS_VERSION = sh(script: "kubectl get service backend-service-main -o yaml | grep 'targetPort: transaction' | grep -o -E 'v[0-9]+'", returnStdout: true)
+            env.UNDERWRITER_VERSION = sh(script: "kubectl get service backend-service-main -o yaml | grep 'targetPort: underwriter' | grep -o -E 'v[0-9]+'", returnStdout: true)
+            env.USER_VERSION = sh(script: "kubectl get service backend-service-main -o yaml | grep 'targetPort: user' | grep -o -E 'v[0-9]+'", returnStdout: true)
+            env.WEIGHT = 20
+            env.BACKEND_VERSION = 'canary'
+        }
+
+        stage("Create Canary Backend Service") {
+            sh "cat service.yml | envsubst | kubectl apply -f -"
+        }
+
+        stage("Git Setup") {
+            steps {
+                sh "git submodule init"
+                sh "git submodule update"
+            }
+        }
+        
+        stage("Test") {
+            steps {
+                bat "mvn clean test"
+            }
+        }
+
+        stage("Package")  {
+            steps {
+                bat "mvn package -DskipTests"
+            }
+        }
+
+        stage("Docker Build") {
+            steps {
+                echo "Building Docker Image with Commit Hash as the tag..."
+                bat "docker build -t ${PROJECT}:${COMMIT_HASH} ."
+            }
+        }
+
+        stage("Create ENV File") {
+            steps {
+                echo "Generating .env..."
+                sh """aws secretsmanager get-secret-value --secret-id aline-kwi/dev/secrets/db --region eu-central-1 | jq -r '.["SecretString"]' | jq '.' | jq -r 'keys[] as \$k | "export Db\\(\$k)=\\(.[\$k])"' > .env"""
+                sh """aws secretsmanager get-secret-value --secret-id aline-kwi/dev/secrets/user-credentials --region us-east-1 | jq -r '.["SecretString"]' | jq '.' | jq -r 'keys[] as \$k | "export \\(\$k)=\\(.[\$k])"' >> .env"""
+                
+                sh "echo 'export ImageTag=${COMMIT_HASH}' >> .env"
+                sh "echo 'export AppPort=${APP_PORT}' >> .env"
+                sh "echo 'export AppName=${APP}' >> .env"
+                sh "echo 'export Project=${PROJECT}' >> .env"
+            }
+        }
+
+        stage("Canary Deployment") {
+            when {
+                environment(name: "DEPLOYMENT", value: "K8s")
+            }
+            steps {
+                script {
+                    // kubectl get service backend-service-main -o yaml | grep 'targetPort: bank' | grep -o -E '[0-9]+'
+                    env.VERSION = ${BANK_VERSION}
+                    sh ". ./.env && envsubst < deployment-canary.yml | kubectl apply -f -"
+                }
+            }
+        }
+    }
+
+    post {
+        always {
+            sh "mvn clean"
+            sh "rm .env"
+        }
+    }
+}

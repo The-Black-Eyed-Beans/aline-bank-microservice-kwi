@@ -10,8 +10,8 @@ pipeline {
     }
 
     environment {
-        AWS_ID = credentials("AWS-ACCOUNT-ID")
-        REGION = credentials("REGION-KWI")
+        // AWS_ID = credentials("AWS-ACCOUNT-ID")
+        // REGION = credentials("REGION-KWI")
         APP = "bank"
         PROJECT = "bank-microservice"
         COMMIT_HASH = "${sh(script: 'git rev-parse --short HEAD', returnStdout: true).trim()}"
@@ -20,10 +20,28 @@ pipeline {
         JFROG_URL = credentials("ARTIFACTORY-URL-KWI")
         JFROG_USER = credentials("ARTIFACTORY-USER-KWI")
         JFROG_PASS = credentials("ARTIFACTORY-PASSWORD-KWI")
-        DEPLOYMENT = "EKS"
+        DEPLOYMENT = "ECS"
     }
 
     stages {
+        stage("Selecting Environment") {
+            steps {
+                script {
+                    if (env.GIT_BRANCH == "master") {
+                        env.ENVIRONMENT = "prod"
+                        env.AWS_ID = credentials("AWS-PROD-ID")
+                        env.REGION = credentials("REGION-PROD-KWI")
+                        env.PROFILE = "keshaun-prod"
+                    } else {
+                        env.ENVIRONMENT = "dev"
+                        env.AWS_ID = credentials("AWS-ACCOUNT-ID")
+                        env.REGION = credentials("REGION-KWI")
+                        env.PROFILE = "keshaun"
+                    }
+                }
+            }
+        }
+
         stage("Git Setup") {
             steps {
                 sh "git submodule init"
@@ -63,7 +81,7 @@ pipeline {
             steps {
                 echo "Authenticating with AWS Credentials..."
                 sh "docker context use default"
-                sh "aws ecr get-login-password --region ${REGION} --profile keshaun | docker login --username AWS --password-stdin ${AWS_ID}.dkr.ecr.${REGION}.amazonaws.com"
+                sh "aws ecr get-login-password --region ${REGION} --profile ${PROFILE} | docker login --username AWS --password-stdin ${AWS_ID}.dkr.ecr.${REGION}.amazonaws.com"
 
                 echo "Building Docker Image with Commit Hash as the tag..."
                 sh "docker build -t ${AWS_ID}.dkr.ecr.${REGION}.amazonaws.com/${PROJECT}-kwi:${COMMIT_HASH} ."
@@ -75,20 +93,20 @@ pipeline {
             }
         }
 
-        stage("Push to Artifactory") {
-            steps {
-                echo "Logging in to Artifactory..."
-                sh "docker login -u ${JFROG_USER} -p ${JFROG_PASS} ${JFROG_URL}"
+        // stage("Push to Artifactory") {
+        //     steps {
+        //         echo "Logging in to Artifactory..."
+        //         sh "docker login -u ${JFROG_USER} -p ${JFROG_PASS} ${JFROG_URL}"
 
-                echo "Pushing Docker Images to Artifactory..."
-                sh "docker tag ${AWS_ID}.dkr.ecr.${REGION}.amazonaws.com/${PROJECT}-kwi:${COMMIT_HASH} ${JFROG_URL}/docker/${PROJECT}:${COMMIT_HASH}"
-                sh "docker tag ${AWS_ID}.dkr.ecr.${REGION}.amazonaws.com/${PROJECT}-kwi:latest ${JFROG_URL}/docker/${PROJECT}:latest"
-                sh "docker push -a ${JFROG_URL}/docker/${PROJECT}"
+        //         echo "Pushing Docker Images to Artifactory..."
+        //         sh "docker tag ${AWS_ID}.dkr.ecr.${REGION}.amazonaws.com/${PROJECT}-kwi:${COMMIT_HASH} ${JFROG_URL}/docker/${PROJECT}:${COMMIT_HASH}"
+        //         sh "docker tag ${AWS_ID}.dkr.ecr.${REGION}.amazonaws.com/${PROJECT}-kwi:latest ${JFROG_URL}/docker/${PROJECT}:latest"
+        //         sh "docker push -a ${JFROG_URL}/docker/${PROJECT}"
 
-                echo "Pushing JAR files to Artifactory..."
-                sh "mvn deploy -DskipTests"
-            }
-        }
+        //         echo "Pushing JAR files to Artifactory..."
+        //         sh "mvn deploy -DskipTests"
+        //     }
+        // }
 
         stage("ECS Deployment") {
             when {
@@ -104,9 +122,10 @@ pipeline {
                 --capabilities CAPABILITY_IAM \
                 --no-fail-on-empty-changeset \
                 --parameter-overrides \
+                    Environment=${ENVIRONMENT} \
                     MicroserviceName=${PROJECT} \
                     AppPort=${APP_PORT} \
-                    ImageTag=${COMMIT_HASH}
+                    ImageTag=${COMMIT_HASH} 
                 '''
             }
         }
@@ -117,9 +136,9 @@ pipeline {
             }
             steps {
                 echo "Generating .env..."
-                sh """aws secretsmanager get-secret-value --secret-id aline-kwi/dev/secrets/resources --region us-east-1 --profile keshaun | jq -r '.["SecretString"]' | jq '.' | jq -r 'keys[] as \$k | "export \\(\$k)=\\(.[\$k])"' > .env"""
-                sh """aws secretsmanager get-secret-value --secret-id aline-kwi/dev/secrets/user-credentials --region us-east-1 --profile keshaun | jq -r '.["SecretString"]' | jq '.' | jq -r 'keys[] as \$k | "export \\(\$k)=\\(.[\$k])"' >> .env"""
-                sh """aws secretsmanager get-secret-value --secret-id aline-kwi/dev/secrets/db --region us-east-1 --profile keshaun | jq -r '.["SecretString"]' | jq '.' | jq -r 'keys[] as \$k | "export Db\\(\$k)=\\(.[\$k])"' >> .env"""
+                sh """aws secretsmanager get-secret-value --secret-id aline-kwi/${Environment}/secrets/resources --region ${REGION} --profile ${PROFILE} | jq -r '.["SecretString"]' | jq '.' | jq -r 'keys[] as \$k | "export \\(\$k)=\\(.[\$k])"' > .env"""
+                sh """aws secretsmanager get-secret-value --secret-id aline-kwi/${Environment}/secrets/user-credentials --region ${REGION} --profile ${PROFILE} | jq -r '.["SecretString"]' | jq '.' | jq -r 'keys[] as \$k | "export \\(\$k)=\\(.[\$k])"' >> .env"""
+                sh """aws secretsmanager get-secret-value --secret-id aline-kwi/${Environment}/secrets/db --region ${REGION} --profile ${PROFILE} | jq -r '.["SecretString"]' | jq '.' | jq -r 'keys[] as \$k | "export Db\\(\$k)=\\(.[\$k])"' >> .env"""
                 
                 sh "echo 'export ImageTag=${COMMIT_HASH}' >> .env"
                 sh "echo 'export AppPort=${APP_PORT}' >> .env"
@@ -142,8 +161,8 @@ pipeline {
         always {
             sh "docker image rm ${AWS_ID}.dkr.ecr.${REGION}.amazonaws.com/${PROJECT}-kwi:${COMMIT_HASH}"
             sh "docker image rm ${AWS_ID}.dkr.ecr.${REGION}.amazonaws.com/${PROJECT}-kwi:latest"
-            sh "docker image rm ${JFROG_URL}/docker/${PROJECT}:${COMMIT_HASH}"
-            sh "docker image rm ${JFROG_URL}/docker/${PROJECT}:latest"
+            // sh "docker image rm ${JFROG_URL}/docker/${PROJECT}:${COMMIT_HASH}"
+            // sh "docker image rm ${JFROG_URL}/docker/${PROJECT}:latest"
             sh "mvn clean"
         }
     }

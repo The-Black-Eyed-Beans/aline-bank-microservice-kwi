@@ -2,6 +2,10 @@
     "AWSTemplateFormatVersion": "2010-09-09",
     "Description": "Deploying microservice to AWS via ECS.",
     "Parameters": {
+        "Environment": {
+            "Type": "String",
+            "Description": "The environment of the project."
+        },
         "MicroserviceName": {
             "Type": "String",
             "Description": "The name of the microservice."
@@ -45,11 +49,11 @@
                     "AwsvpcConfiguration": {
                         "AssignPublicIp": "ENABLED",
                         "Subnets": [
-                            "{{resolve:secretsmanager:aline-kwi/dev/secrets/resources:SecretString:PrivateSubnet1}}",
-                            "{{resolve:secretsmanager:aline-kwi/dev/secrets/resources:SecretString:PrivateSubnet2}}"
+                            {"Fn::Sub": "{{resolve:secretsmanager:aline-kwi/${Environment}/secrets/resources:SecretString:PrivateSubnet1}}"},
+                            {"Fn::Sub": "{{resolve:secretsmanager:aline-kwi/${Environment}/secrets/resources:SecretString:PrivateSubnet2}}"}
                         ],
                         "SecurityGroups": [
-                            "{{resolve:secretsmanager:aline-kwi/dev/secrets/resources:SecretString:AppSecurityGroup}}"
+                            {"Fn::Sub": "{{resolve:secretsmanager:aline-kwi/${Environment}/secrets/resources:SecretString:AppSecurityGroup}}"}
                         ]
                     }
                 },
@@ -76,39 +80,39 @@
                             },
                             {
                                 "Name": "APP_USER_ACCESS_KEY",
-                                "Value": "{{resolve:secretsmanager:aline-kwi/dev/secrets/user-credentials:SecretString:AccessKey}}"
+                                "Value": {"Fn::Sub": "{{resolve:secretsmanager:aline-kwi/${Environment}/secrets/user-credentials:SecretString:AccessKey}}"}
                             },
                             {
                                 "Name": "APP_USER_SECRET_KEY",
-                                "Value": "{{resolve:secretsmanager:aline-kwi/dev/secrets/user-credentials:SecretString:SecretKey}}"
+                                "Value": {"Fn::Sub": "{{resolve:secretsmanager:aline-kwi/${Environment}/secrets/user-credentials:SecretString:SecretKey}}"}
                             },
                             {
                                 "Name": "ENCRYPT_SECRET_KEY",
-                                "Value": "{{resolve:secretsmanager:aline-kwi/dev/secrets/user-credentials:SecretString:EncryptKey}}"
+                                "Value": {"Fn::Sub": "{{resolve:secretsmanager:aline-kwi/${Environment}/secrets/user-credentials:SecretString:EncryptKey}}"}
                             },
                             {
                                 "Name": "JWT_SECRET_KEY",
-                                "Value": "{{resolve:secretsmanager:aline-kwi/dev/secrets/user-credentials:SecretString:JWTSecretKey}}"
+                                "Value": {"Fn::Sub": "{{resolve:secretsmanager:aline-kwi/${Environment}/secrets/user-credentials:SecretString:JWTSecretKey}}"}
                             },
                             {
                                 "Name": "DB_USERNAME",
-                                "Value": "{{resolve:secretsmanager:aline-kwi/dev/secrets/db:SecretString:Username}}"
+                                "Value": {"Fn::Sub": "{{resolve:secretsmanager:aline-kwi/${Environment}/secrets/db:SecretString:Username}}"}
                             },
                             {
                                 "Name": "DB_PASSWORD",
-                                "Value": "{{resolve:secretsmanager:aline-kwi/dev/secrets/db:SecretString:Password}}"
+                                "Value": {"Fn::Sub": "{{resolve:secretsmanager:aline-kwi/${Environment}/secrets/db:SecretString:Password}}"}
                             },
                             {
                                 "Name": "DB_HOST",
-                                "Value": "{{resolve:secretsmanager:aline-kwi/dev/secrets/db:SecretString:Host}}"
+                                "Value": {"Fn::Sub": "{{resolve:secretsmanager:aline-kwi/${Environment}/secrets/db:SecretString:Host}}"}
                             },
                             {
                                 "Name": "DB_PORT",
-                                "Value": "{{resolve:secretsmanager:aline-kwi/dev/secrets/db:SecretString:Port}}"
+                                "Value": {"Fn::Sub": "{{resolve:secretsmanager:aline-kwi/${Environment}/secrets/db:SecretString:Port}}"}
                             },
                             {
                                 "Name": "DB_NAME",
-                                "Value": "{{resolve:secretsmanager:aline-kwi/dev/secrets/db:SecretString:Name}}"
+                                "Value": {"Fn::Sub": "{{resolve:secretsmanager:aline-kwi/${Environment}/secrets/db:SecretString:Name}}"}
                             }
                         ],
                         "Essential": true,
@@ -144,14 +148,14 @@
                     }
                 ],
                 "Cpu": 512,
-                "ExecutionRoleArn": "{{resolve:secretsmanager:aline-kwi/dev/secrets/resources:SecretString:TaskExecutionRole}}",
+                "ExecutionRoleArn": {"Fn::Sub": "{{resolve:secretsmanager:aline-kwi/${Environment}/secrets/resources:SecretString:TaskExecutionRole}}"},
                 "Family": {
                     "Fn::Sub": "${MicroserviceName}-kwi"
                 },
                 "Memory": 2048,
                 "NetworkMode": "awsvpc",
                 "RequiresCompatibilities": ["FARGATE"],
-                "TaskRoleArn": "{{resolve:secretsmanager:aline-kwi/dev/secrets/resources:SecretString:TaskRole}}"
+                "TaskRoleArn": {"Fn::Sub": "{{resolve:secretsmanager:aline-kwi/${Environment}/secrets/resources:SecretString:TaskRole}}"}
             }
         },
 
@@ -169,7 +173,7 @@
                 },
                 "Protocol": "HTTP",
                 "TargetType": "ip",
-                "VpcId": "{{resolve:secretsmanager:aline-kwi/dev/secrets/resources:SecretString:VpcId}}"
+                "VpcId": {"Fn::Sub": "{{resolve:secretsmanager:aline-kwi/${Environment}/secrets/resources:SecretString:VpcId}}"}
             }
         },
 
@@ -184,7 +188,7 @@
                         }
                     }
                 ],
-                "LoadBalancerArn": "{{resolve:secretsmanager:aline-kwi/dev/secrets/resources:SecretString:AppLoadBalancerArn}}",
+                "LoadBalancerArn": {"Fn::Sub": "{{resolve:secretsmanager:aline-kwi/${Environment}/secrets/resources:SecretString:AppLoadBalancerArn}}"},
                 "Port": {
                     "Ref": "AppPort"
                 },
