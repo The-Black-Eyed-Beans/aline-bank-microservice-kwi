@@ -80,6 +80,7 @@ pipeline {
                     // kubectl get service backend-service-main -o yaml | grep 'targetPort: bank' | grep -o -E '[0-9]+'
                     env.VERSION = "${BANK_VERSION}"
                     sh ". ./.env && envsubst < deployment-canary.yml | kubectl apply -f -"
+                    sh "cat ingress-canary.yml | envsubst | kubectl apply -f -"
                 }
             }
         }
