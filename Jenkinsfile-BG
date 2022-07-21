@@ -6,10 +6,28 @@ pipeline {
         PROJECT = "bank-microservice"
         COMMIT_HASH = "${sh(script: 'git rev-parse --short HEAD', returnStdout: true).trim()}"
         APP_PORT = 8083
-        DEPLOYMENT = "BG"
+        DEPLOYMENT = "ECS"
+        HOST = "localhost"
+        ENDPOINT = "banks"
     }
 
     stages {
+        stage("ECS Setup") {
+            when {
+                environment(name: "DEPLOYMENT", value: "ECS")
+            }
+            steps {
+                script {
+                    def check = sh(script: """aws route53 list-resource-record-sets --hosted-zone-id Z03370822HGVXNPZSI11U --query "ResourceRecordSets[?Name == 'api.dev.keshaun.theblackeyedbeans.net.' && SetIdentifier == 'blue']" | grep 'Weight' | grep -o -E '[0-9]+'""", returnStdout: true)
+                    if (check == '100') {
+                        env.DEPLOYMENT_COLOR = "blue"
+                    } else {
+                        env.DEPLOYMENT_COLOR = "green"
+                    }
+                }
+            }
+        }
+
         stage("Git Setup") {
             steps {
                 sh "git submodule init"
@@ -37,6 +55,11 @@ pipeline {
         }
 
         stage("Create ENV File") {
+            when {
+                not {
+                    environment(name: "DEPLOYMENT", value: "ECS")
+                }
+            }
             steps {
                 echo "Generating .env..."
                 sh """aws secretsmanager get-secret-value --secret-id aline-kwi/dev/secrets/db --region eu-central-1 | jq -r '.["SecretString"]' | jq '.' | jq -r 'keys[] as \$k | "export Db\\(\$k)=\\(.[\$k])"' > .env"""
@@ -51,7 +74,7 @@ pipeline {
 
         stage("Green Deployment") {
             when {
-                environment(name: "DEPLOYMENT", value: "BG")
+                environment(name: "DEPLOYMENT", value: "K8s")
             }
             steps {
                 echo "Deploying ${PROJECT}..."
@@ -63,13 +86,13 @@ pipeline {
 
         stage("Blue Deployment") {
             when {
-                environment(name: "DEPLOYMENT", value: "BG")
+                environment(name: "DEPLOYMENT", value: "K8s")
             }
             steps {
                 script {
                     sleep 90
-                    def output = sh(returnStdout: true, script: "curl http://localhost:81/api/banks")
-                    if(output.contains("Not Found")) {
+                    def output = sh(returnStdout: true, script: "curl http://${HOST}:81/api/${ENDPOINT}")
+                    if(output.contains("Not Found") || output.contains("Internal Server Error")) {
                         sh ". ./.env && envsubst < deployment-green.yml | kubectl delete -f -"
                         error("New version not working...")
                     } else {
@@ -79,12 +102,56 @@ pipeline {
                 }
             }
         }
+
+        stage("ECS Deployment") {
+            when {
+                environment(name: "DEPLOYMENT", value: "ECS")
+            }
+            steps {
+                script {
+                    sh '''
+                    aws cloudformation deploy \
+                    --stack-name ${PROJECT}-${DEPLOYMENT_COLOR}-kwi-stack \
+                    --template-file deploy-${DEPLOYMENT_COLOR}.json \
+                    --capabilities CAPABILITY_IAM \
+                    --no-fail-on-empty-changeset \
+                    --parameter-overrides \
+                        Environment=${ENVIRONMENT} \
+                        MicroserviceName=${PROJECT} \
+                        AppPort=${APP_PORT} \
+                        ImageTag=${COMMIT_HASH} 
+                    '''
+                    def services = ["account-microservice", "transaction-microservice", "underwriter-microservice", "user-microservice"]
+                    def ports = [8072, 8073, 8071, 8070]
+                    for (int i = 0; i < services.size(); i++) {
+                        env.SERVICE = services[i]
+                        env.TAG = sh(script: "aws ecr describe-images --repository-name ${SERVICE}-kwi --query 'sort_by(imageDetails,& imagePushedAt)[-1].imageTags[0]'", returnStdout: true)
+                        env.PORT = ports[i]
+
+                        sh '''
+                        aws cloudformation deploy \
+                        --stack-name ${SERVICE}-${DEPLOYMENT_COLOR}-kwi-stack \
+                        --template-file deploy-${DEPLOYMENT_COLOR}.json \
+                        --capabilities CAPABILITY_IAM \
+                        --no-fail-on-empty-changeset \
+                        --parameter-overrides \
+                            Environment=${ENVIRONMENT} \
+                            MicroserviceName=${SERVICE} \
+                            AppPort=${PORT} \
+                            ImageTag=${TAG} 
+                        '''
+                    }
+                }
+            }
+        }
+        // def services = ["account-microservice", "bank-microservice", "transaction-microservice", "underwriter-microservice", "user-microservice"]
+        // aws ecr describe-images --repository-name bank-microservice-kwi --query 'sort_by(imageDetails,& imagePushedAt)[-1].imageTags[0]'
     }
 
     post {
         always {
             sh "mvn clean"
-            sh "rm .env"
+            sh "rm -f .env"
         }
     }
 }
