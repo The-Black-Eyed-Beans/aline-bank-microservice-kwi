@@ -6,9 +6,11 @@ pipeline {
         PROJECT = "bank-microservice"
         COMMIT_HASH = "${sh(script: 'git rev-parse --short HEAD', returnStdout: true).trim()}"
         APP_PORT = 8083
-        DEPLOYMENT = "ECS"
+        DEPLOYMENT = "EKS"
         HOST = "localhost"
         ENDPOINT = "banks"
+        AWS_ID = credentials("AWS-ID")
+        REGION = "eu-cental-1"
     }
 
     stages {
@@ -20,10 +22,28 @@ pipeline {
                 script {
                     def check = sh(script: """aws route53 list-resource-record-sets --hosted-zone-id Z03370822HGVXNPZSI11U --query "ResourceRecordSets[?Name == 'api.dev.keshaun.theblackeyedbeans.net.' && SetIdentifier == 'blue']" | grep 'Weight' | grep -o -E '[0-9]+'""", returnStdout: true)
                     if (check == '100') {
-                        env.DEPLOYMENT_COLOR = "blue"
-                    } else {
                         env.DEPLOYMENT_COLOR = "green"
+                    } else {
+                        env.DEPLOYMENT_COLOR = "blue"
                     }
+                }
+            }
+        }
+
+        stage("EKS Setup") {
+            when {
+                environment(name: "DEPLOYMENT", value: "EKS")
+            }
+            steps {
+                def green = sh(script: "kubectl get svc gateway-service-green -o yaml | grep 'hostname:' | grep -o -E '[a-zA-Z0-9\\-]+.eu-central-1.elb.amazonaws.com'", returnStdout: true)
+                def blue = sh(script: "kubectl get svc gateway-service-blue -o yaml | grep 'hostname:' | grep -o -E '[a-zA-Z0-9\\-]+.eu-central-1.elb.amazonaws.com'", returnStdout: true)
+                def output = sh(script: """aws route53 list-resource-record-sets --hosted-zone-id Z03370822HGVXNPZSI11U --query "ResourceRecordSets[?Name == 'eks.keshaun.theblackeyedbeans.net.']" | grep 'DNSName' | grep -o -E '[a-zA-Z0-9\\-]+.eu-central-1.elb.amazonaws.com""", returnStdout: true)
+                if(output == blue) {
+                    env.DEPLOYMENT_COLOR = "green"
+                    env.LOAD_BALANCER = green
+                } else {
+                    env.DEPLOYMENT_COLOR = "blue"
+                    env.LOAD_BALANCER = blue
                 }
             }
         }
@@ -49,8 +69,14 @@ pipeline {
 
         stage("Docker Build") {
             steps {
+                echo "Authenticating with AWS Credentials..."
+                sh "docker context use default"
+                sh "aws ecr get-login-password --region ${REGION} --profile ${PROFILE} | docker login --username AWS --password-stdin ${AWS_ID}.dkr.ecr.${REGION}.amazonaws.com"
+                
                 echo "Building Docker Image with Commit Hash as the tag..."
                 bat "docker build -t ${PROJECT}:${COMMIT_HASH} ."
+                bat "docker tag ${PROJECT}:${COMMIT_HASH} ${AWS_ID}.dkr.ecr.${REGION}.amazonaws.com/${PROJECT}-kwi:${COMMIT_HASH}"
+                bat "docker push ${AWS_ID}.dkr.ecr.${REGION}.amazonaws.com/${PROJECT}-kwi:${COMMIT_HASH}"
             }
         }
 
@@ -62,13 +88,19 @@ pipeline {
             }
             steps {
                 echo "Generating .env..."
-                sh """aws secretsmanager get-secret-value --secret-id aline-kwi/dev/secrets/db --region eu-central-1 | jq -r '.["SecretString"]' | jq '.' | jq -r 'keys[] as \$k | "export Db\\(\$k)=\\(.[\$k])"' > .env"""
-                sh """aws secretsmanager get-secret-value --secret-id aline-kwi/dev/secrets/user-credentials --region us-east-1 | jq -r '.["SecretString"]' | jq '.' | jq -r 'keys[] as \$k | "export \\(\$k)=\\(.[\$k])"' >> .env"""
+                // sh """aws secretsmanager get-secret-value --secret-id aline-kwi/dev/secrets/db --region eu-central-1 | jq -r '.["SecretString"]' | jq '.' | jq -r 'keys[] as \$k | "export Db\\(\$k)=\\(.[\$k])"' > .env"""
+                // sh """aws secretsmanager get-secret-value --secret-id aline-kwi/dev/secrets/user-credentials --region us-east-1 | jq -r '.["SecretString"]' | jq '.' | jq -r 'keys[] as \$k | "export \\(\$k)=\\(.[\$k])"' >> .env"""
                 
+                sh """aws secretsmanager get-secret-value --secret-id aline-kwi/dev/secrets/resources --region eu-central-1 | jq -r '.["SecretString"]' | jq '.' | jq -r 'keys[] as \$k | "export \\(\$k)=\\(.[\$k])"' > .env"""
+                sh """aws secretsmanager get-secret-value --secret-id aline-kwi/dev/secrets/user-credentials --region eu-central-1 | jq -r '.["SecretString"]' | jq '.' | jq -r 'keys[] as \$k | "export \\(\$k)=\\(.[\$k])"' >> .env"""
+                sh """aws secretsmanager get-secret-value --secret-id aline-kwi/dev/secrets/db --region eu-central-1 | jq -r '.["SecretString"]' | jq '.' | jq -r 'keys[] as \$k | "export Db\\(\$k)=\\(.[\$k])"' >> .env"""
+
                 sh "echo 'export ImageTag=${COMMIT_HASH}' >> .env"
                 sh "echo 'export AppPort=${APP_PORT}' >> .env"
                 sh "echo 'export AppName=${APP}' >> .env"
                 sh "echo 'export Project=${PROJECT}' >> .env"
+                sh "echo 'export AwsId=${AWS_ID}' >> .env"
+                sh "echo 'export AwsRegion=${REGION}' >> .env"
             }
         }
 
@@ -141,6 +173,32 @@ pipeline {
                             ImageTag=${TAG} 
                         '''
                     }
+                }
+            }
+        }
+
+        stage("EKS Deployment") {
+            when {
+                environment(name: "DEPLOYMENT", value: "EKS")
+            }
+            steps {
+                script {
+                    sh "aws eks update-kubeconfig --name=aline-kwi-dev-eks --region=${REGION}"
+                    sh ". ./.env && envsubst < eks-deployment.yml | kubectl apply -f -"
+
+                    def services = ["account-microservice", "transaction-microservice", "underwriter-microservice", "user-microservice"]
+                    def apps = ["account", "transaction", "underwriter", "user"]
+                    def ports = [8072, 8073, 8071, 8070]
+                    for (int i = 0; i < services.size(); i++) {
+                        env.Project = services[i]
+                        env.ImageTag = sh(script: "aws ecr describe-images --repository-name ${SERVICE}-kwi --query 'sort_by(imageDetails,& imagePushedAt)[-1].imageTags[0]'", returnStdout: true)
+                        env.AppPort = ports[i]
+                        env.AppName = apps[i]
+
+                        sh "cat eks-deployment.yml | envsubst | kubectl apply -f -"
+                    }
+
+                    echo "Load Balancer DNS for ${DEPLOYMENT_COLOR} deployment: ${LOAD_BALANCER}"
                 }
             }
         }
