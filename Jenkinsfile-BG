@@ -201,6 +201,8 @@ pipeline {
                         sh """aws secretsmanager get-secret-value --secret-id aline-kwi/dev/secrets/resources --region eu-central-1 | jq -r '.["SecretString"]' | jq '.' | jq -r 'keys[] as \$k | "export \\(\$k)=\\(.[\$k])"' > .env"""
                         sh """aws secretsmanager get-secret-value --secret-id aline-kwi/dev/secrets/user-credentials --region eu-central-1 | jq -r '.["SecretString"]' | jq '.' | jq -r 'keys[] as \$k | "export \\(\$k)=\\(.[\$k])"' >> .env"""
                         sh """aws secretsmanager get-secret-value --secret-id aline-kwi/dev/secrets/db --region eu-central-1 | jq -r '.["SecretString"]' | jq '.' | jq -r 'keys[] as \$k | "export Db\\(\$k)=\\(.[\$k])"' >> .env"""
+                        sh "echo 'export AwsId=${AWS_ID}' >> .env"
+                        sh "echo 'export AwsRegion=${REGION}' >> .env"
 
                         sh ". ./.env && envsubst < eks-deployment.yml | kubectl apply -f -"
                     }
