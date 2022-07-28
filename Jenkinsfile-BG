@@ -35,15 +35,17 @@ pipeline {
                 environment(name: "DEPLOYMENT", value: "EKS")
             }
             steps {
-                def green = sh(script: "kubectl get svc gateway-service-green -o yaml | grep 'hostname:' | grep -o -E '[a-zA-Z0-9\\-]+.eu-central-1.elb.amazonaws.com'", returnStdout: true)
-                def blue = sh(script: "kubectl get svc gateway-service-blue -o yaml | grep 'hostname:' | grep -o -E '[a-zA-Z0-9\\-]+.eu-central-1.elb.amazonaws.com'", returnStdout: true)
-                def output = sh(script: """aws route53 list-resource-record-sets --hosted-zone-id Z03370822HGVXNPZSI11U --query "ResourceRecordSets[?Name == 'eks.keshaun.theblackeyedbeans.net.']" | grep 'DNSName' | grep -o -E '[a-zA-Z0-9\\-]+.eu-central-1.elb.amazonaws.com""", returnStdout: true)
-                if(output == blue) {
-                    env.DEPLOYMENT_COLOR = "green"
-                    env.LOAD_BALANCER = green
-                } else {
-                    env.DEPLOYMENT_COLOR = "blue"
-                    env.LOAD_BALANCER = blue
+                script {
+                    def green = sh(script: "kubectl get svc gateway-service-green -o yaml | grep 'hostname:' | grep -o -E '[a-zA-Z0-9\\-]+.eu-central-1.elb.amazonaws.com'", returnStdout: true)
+                    def blue = sh(script: "kubectl get svc gateway-service-blue -o yaml | grep 'hostname:' | grep -o -E '[a-zA-Z0-9\\-]+.eu-central-1.elb.amazonaws.com'", returnStdout: true)
+                    def output = sh(script: """aws route53 list-resource-record-sets --hosted-zone-id Z03370822HGVXNPZSI11U --query "ResourceRecordSets[?Name == 'eks.keshaun.theblackeyedbeans.net.']" | grep 'DNSName' | grep -o -E '[a-zA-Z0-9\\-]+.eu-central-1.elb.amazonaws.com""", returnStdout: true)
+                    if(output == blue) {
+                        env.DEPLOYMENT_COLOR = "green"
+                        env.LOAD_BALANCER = green
+                    } else {
+                        env.DEPLOYMENT_COLOR = "blue"
+                        env.LOAD_BALANCER = blue
+                    }
                 }
             }
         }
