@@ -1,0 +1,16 @@
+{
+    "Changes": [
+      {
+        "Action": "UPSERT",
+        "ResourceRecordSet": {
+          "Name": "eks.keshaun.theblackeyedbeans.net",
+          "Type": "A",
+          "AliasTarget": {
+            "HostedZoneId": "Z215JYRZR1TBD5",
+            "DNSName": "aeef1dbd7f9634f5cb75a16c9c64ac95-143785419.eu-central-1.elb.amazonaws.com",
+            "EvaluateTargetHealth": true
+          }
+        }
+      }
+    ]
+  }
