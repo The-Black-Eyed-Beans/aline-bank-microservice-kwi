@@ -10,7 +10,7 @@ pipeline {
         HOST = "localhost"
         ENDPOINT = "banks"
         AWS_ID = credentials("AWS-ID")
-        REGION = "eu-cental-1"
+        REGION = "eu-central-1"
     }
 
     stages {
