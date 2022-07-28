@@ -194,7 +194,7 @@ pipeline {
                     for (int i = 0; i < services.size(); i++) {
                         env.SERVICE = services[i]
                         env.Project = services[i]
-                        env.ImageTag = sh(script: "aws ecr describe-images --repository-name ${SERVICE}-kwi --query 'sort_by(imageDetails,& imagePushedAt)[-1].imageTags[0]'", returnStdout: true)
+                        env.ImageTag = sh(script: "aws ecr describe-images --repository-name ${SERVICE}-kwi --query 'sort_by(imageDetails,& imagePushedAt)[-1].imageTags[0]' | grep -o -E '[0-9a-zA-Z]+'", returnStdout: true)
                         env.AppPort = ports[i]
                         env.AppName = apps[i]
 
