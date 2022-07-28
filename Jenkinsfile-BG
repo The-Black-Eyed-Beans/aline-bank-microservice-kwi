@@ -193,7 +193,7 @@ pipeline {
                     def ports = [8072, 8073, 8071, 8070]
                     for (int i = 0; i < services.size(); i++) {
                         env.Project = services[i]
-                        env.ImageTag = sh(script: "aws ecr describe-images --repository-name ${SERVICE}-kwi --query 'sort_by(imageDetails,& imagePushedAt)[-1].imageTags[0]'", returnStdout: true)
+                        env.ImageTag = sh(script: "aws ecr describe-images --repository-name ${Project}-kwi --query 'sort_by(imageDetails,& imagePushedAt)[-1].imageTags[0]'", returnStdout: true)
                         env.AppPort = ports[i]
                         env.AppName = apps[i]
 
