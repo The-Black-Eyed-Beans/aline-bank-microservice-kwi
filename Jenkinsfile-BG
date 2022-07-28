@@ -198,7 +198,11 @@ pipeline {
                         env.AppPort = ports[i]
                         env.AppName = apps[i]
 
-                        sh "cat eks-deployment.yml | envsubst | kubectl apply -f -"
+                        sh """aws secretsmanager get-secret-value --secret-id aline-kwi/dev/secrets/resources --region eu-central-1 | jq -r '.["SecretString"]' | jq '.' | jq -r 'keys[] as \$k | "export \\(\$k)=\\(.[\$k])"' > .env"""
+                        sh """aws secretsmanager get-secret-value --secret-id aline-kwi/dev/secrets/user-credentials --region eu-central-1 | jq -r '.["SecretString"]' | jq '.' | jq -r 'keys[] as \$k | "export \\(\$k)=\\(.[\$k])"' >> .env"""
+                        sh """aws secretsmanager get-secret-value --secret-id aline-kwi/dev/secrets/db --region eu-central-1 | jq -r '.["SecretString"]' | jq '.' | jq -r 'keys[] as \$k | "export Db\\(\$k)=\\(.[\$k])"' >> .env"""
+
+                        sh ". ./.env && envsubst < eks-deployment.yml | kubectl apply -f -"
                     }
 
                     echo "Load Balancer DNS for ${DEPLOYMENT_COLOR} deployment: ${LOAD_BALANCER}"
