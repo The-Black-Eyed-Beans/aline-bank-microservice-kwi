@@ -1,0 +1,34 @@
+{
+    "Changes": [
+      {
+        "Action": "UPSERT",
+        "ResourceRecordSet": {
+          "Name": "api.dev.keshaun.theblackeyedbeans.net",
+          "Type": "CNAME",
+          "SetIdentifier": "green",
+          "Weight": 100,
+          "TTL": 1800,
+          "ResourceRecords": [
+            {
+              "Value": "green.dev.keshaun.theblackeyedbeans.net"
+            }
+          ]
+        }
+      },
+      {
+        "Action": "UPSERT",
+        "ResourceRecordSet": {
+          "Name": "api.dev.keshaun.theblackeyedbeans.net",
+          "Type": "CNAME",
+          "SetIdentifier": "blue",
+          "Weight": 0,
+          "TTL": 1800,
+          "ResourceRecords": [
+            {
+              "Value": "blue.dev.keshaun.theblackeyedbeans.net"
+            }
+          ]
+        }
+      }
+    ]
+  }
