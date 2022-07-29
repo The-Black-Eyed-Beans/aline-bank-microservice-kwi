@@ -133,7 +133,7 @@ pipeline {
                     def ports = [8072, 8073, 8071, 8070]
                     for (int i = 0; i < services.size(); i++) {
                         env.SERVICE = services[i]
-                        env.TAG = sh(script: "aws ecr describe-images --repository-name ${SERVICE}-kwi --query 'sort_by(imageDetails,& imagePushedAt)[-1].imageTags[0]'", returnStdout: true)
+                        env.TAG = sh(script: "aws ecr describe-images --repository-name ${SERVICE}-kwi --query 'sort_by(imageDetails,& imagePushedAt)[-1].imageTags[0]' | grep -o -E '[0-9a-zA-Z]+'", returnStdout: true)
                         env.PORT = ports[i]
 
                         sh '''
