@@ -143,7 +143,7 @@ pipeline {
                         --capabilities CAPABILITY_IAM \
                         --no-fail-on-empty-changeset \
                         --parameter-overrides \
-                            Environment=${ENVIRONMENT} \
+                            Environment=dev \
                             MicroserviceName=${SERVICE} \
                             AppPort=${PORT} \
                             ImageTag=${TAG} 
