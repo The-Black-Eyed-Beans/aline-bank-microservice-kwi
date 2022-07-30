@@ -21,10 +21,10 @@ pipeline {
             steps {
                 script {
                     def check = sh(script: """aws route53 list-resource-record-sets --hosted-zone-id Z03370822HGVXNPZSI11U --query "ResourceRecordSets[?Name == 'api.dev.keshaun.theblackeyedbeans.net.' && SetIdentifier == 'blue']" | grep 'Weight' | grep -o -E '[0-9]+'""", returnStdout: true)
-                    if (check == '100') {
-                        env.DEPLOYMENT_COLOR = "blue"
-                    } else {
+                    if (check.contains('100')) {
                         env.DEPLOYMENT_COLOR = "green"
+                    } else {
+                        env.DEPLOYMENT_COLOR = "blue"
                     }
                 }
             }
